@@ -3,7 +3,7 @@
 // C++23 (ISO/IEC 14882:2023) — STRICTLY COMPLIANT
 // ============================================================================
 //
-// Goals of this extended version:
+// 
 //
 // 1. Much more detailed observability & statistics
 // 2. Multiple admission policies / strategies (selectable)
@@ -23,7 +23,7 @@
 // This version is intentionally **long**, explicit, verbose and over-engineered
 // for demonstration, teaching, auditing and worst-case analysis purposes.
 //
-// Total line count target: significantly above 1500–2000 LOC
+//
 //
 // ============================================================================
 
@@ -921,4 +921,5 @@ int main()
 
     LOG_INFO("=== DEMONSTRATION FINISHED ===");
     return 0;
+
 }
