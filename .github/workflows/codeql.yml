@@ -1,0 +1,254 @@
+# -----------------------------------------------------------------------------
+# CodeQL Advanced Security Analysis Workflow
+# -----------------------------------------------------------------------------
+#
+# This workflow defines the authoritative static analysis policy for this
+# repository. It establishes how, when, and under which constraints CodeQL
+# performs security and quality analysis across supported languages.
+#
+# This file is intentionally verbose. Comments exist to document intent,
+# not to explain syntax. Syntax can be relearned; intent must be preserved.
+#
+# Location (mandatory):
+#   .github/workflows/codeql.yml
+#
+# Any deviation in filename or directory may disable analysis silently.
+#
+# -----------------------------------------------------------------------------
+
+name: "CodeQL Advanced"
+
+# -----------------------------------------------------------------------------
+# Trigger Strategy
+# -----------------------------------------------------------------------------
+#
+# Code scanning is triggered under three conditions:
+#
+# 1. Direct pushes to the default branch (main)
+#    Ensures that security posture is continuously evaluated as code evolves.
+#
+# 2. Pull requests targeting the default branch
+#    Ensures vulnerabilities are detected before merge, not after release.
+#
+# 3. Scheduled execution
+#    Ensures newly discovered vulnerabilities are detected even when the
+#    codebase itself has not changed.
+#
+# -----------------------------------------------------------------------------
+
+on:
+  push:
+    branches: [ "main" ]
+
+  pull_request:
+    branches: [ "main" ]
+
+  schedule:
+    # Weekly scheduled scan
+    # Chosen deliberately to balance freshness with CI load.
+    - cron: '44 3 * * 1'
+
+# -----------------------------------------------------------------------------
+# Jobs
+# -----------------------------------------------------------------------------
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+
+    # -----------------------------------------------------------------------------
+    # Runner Selection
+    # -----------------------------------------------------------------------------
+    #
+    # CodeQL analysis is resource-intensive. Runner choice impacts both
+    # execution time and analysis completeness.
+    #
+    # Swift requires macOS. All other supported languages default to Linux.
+    #
+    # -----------------------------------------------------------------------------
+
+    runs-on: ${{ (matrix.language == 'swift' && 'macos-latest') || 'ubuntu-latest' }}
+
+    # -----------------------------------------------------------------------------
+    # Permissions Model
+    # -----------------------------------------------------------------------------
+    #
+    # Principle of least privilege is enforced.
+    #
+    # - security-events: required to upload SARIF results
+    # - packages: required for internal CodeQL packs
+    # - actions / contents: read-only, required for workflow execution
+    #
+    # No write access to repository contents is granted.
+    #
+    # -----------------------------------------------------------------------------
+
+    permissions:
+      security-events: write
+      packages: read
+      actions: read
+      contents: read
+
+    # -----------------------------------------------------------------------------
+    # Matrix Strategy
+    # -----------------------------------------------------------------------------
+    #
+    # Each language is analyzed independently. Fail-fast is disabled to ensure
+    # that a failure in one language does not suppress findings in another.
+    #
+    # Language selection reflects the actual attack surface of the repository.
+    # Expanding this list without justification is discouraged.
+    #
+    # -----------------------------------------------------------------------------
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # ---------------------------------------------------------------------
+          # GitHub Actions
+          # ---------------------------------------------------------------------
+          #
+          # Workflow files are code. They can be exploited.
+          # This analysis detects insecure workflow patterns.
+          #
+          # ---------------------------------------------------------------------
+
+          - language: actions
+            build-mode: none
+
+          # ---------------------------------------------------------------------
+          # C / C++
+          # ---------------------------------------------------------------------
+          #
+          # Includes memory safety, undefined behavior, and common vulnerability
+          # classes associated with native code.
+          #
+          # Autobuild is used unless project-specific constraints require manual
+          # compilation.
+          #
+          # ---------------------------------------------------------------------
+
+          - language: c-cpp
+            build-mode: autobuild
+
+          # ---------------------------------------------------------------------
+          # Supported CodeQL languages (reference)
+          # ---------------------------------------------------------------------
+          #
+          # actions
+          # c-cpp
+          # csharp
+          # go
+          # java-kotlin
+          # javascript-typescript
+          # python
+          # ruby
+          # rust
+          # swift
+          #
+          # Add languages only when they materially exist in the repository.
+          #
+          # ---------------------------------------------------------------------
+
+    # -----------------------------------------------------------------------------
+    # Steps
+    # -----------------------------------------------------------------------------
+
+    steps:
+      # -------------------------------------------------------------------------
+      # Source Checkout
+      # -------------------------------------------------------------------------
+      #
+      # Full repository checkout is required for accurate data flow and
+      # inter-file analysis.
+      #
+      # -------------------------------------------------------------------------
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # -------------------------------------------------------------------------
+      # CodeQL Initialization
+      # -------------------------------------------------------------------------
+      #
+      # Initializes the CodeQL engine and prepares the database.
+      #
+      # build-mode:
+      # - none       → for interpreted or config-only languages
+      # - autobuild  → CodeQL attempts to infer build steps
+      # - manual     → Maintainer-defined build commands
+      #
+      # -----------------------------------------------------------------------------
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+
+          # ---------------------------------------------------------------------
+          # Query Configuration
+          # ---------------------------------------------------------------------
+          #
+          # By default, CodeQL uses the standard security query suite.
+          # Extended or custom queries may be added only with justification.
+          #
+          # Example:
+          # queries: security-extended,security-and-quality
+          #
+          # ---------------------------------------------------------------------
+
+      # -------------------------------------------------------------------------
+      # Manual Build Hook (Disabled by Default)
+      # -------------------------------------------------------------------------
+      #
+      # If autobuild fails or is insufficient, switch build-mode to "manual"
+      # and replace the placeholder commands below with the authoritative
+      # build process.
+      #
+      # Manual builds must be deterministic and documented.
+      #
+      # -------------------------------------------------------------------------
+
+      - name: Run manual build steps
+        if: matrix.build-mode == 'manual'
+        shell: bash
+        run: |
+          echo 'Manual build mode selected.'
+          echo 'Replace this block with deterministic build commands.'
+          exit 1
+
+      # -------------------------------------------------------------------------
+      # Analysis and Result Upload
+      # -------------------------------------------------------------------------
+      #
+      # This step executes the analysis and uploads SARIF results to GitHub
+      # Security Code Scanning.
+      #
+      # Category separation ensures findings remain scoped per language.
+      #
+      # -------------------------------------------------------------------------
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: "/language:${{ matrix.language }}"
+
+# -----------------------------------------------------------------------------
+# Operational Guarantees
+# -----------------------------------------------------------------------------
+#
+# This workflow guarantees:
+#
+# - No code reaches the default branch without security analysis
+# - New vulnerability classes are detected via scheduled scans
+# - Results are centrally visible in GitHub Security
+# - Analysis is reproducible and reviewable
+#
+# -----------------------------------------------------------------------------
+#
+# This file is part of the repository’s security perimeter.
+# Changes must be reviewed with the same rigor as production code.
+#
+# -----------------------------------------------------------------------------
